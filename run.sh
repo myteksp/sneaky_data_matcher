@@ -1,8 +1,3 @@
-rm -rf build
-gradle build
-
-sudo chmod +x build/libs/server-0.0.1-SNAPSHOT.jar
-
 export MINIO_PASSWORD="RootRoot"
 export MINIO_USER="root"
 export MINIO_URI="http://62.169.24.195:9000"
