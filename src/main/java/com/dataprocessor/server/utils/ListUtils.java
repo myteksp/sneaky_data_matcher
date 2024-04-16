@@ -5,6 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 
 public final class ListUtils {
+
+    public static final <T> List<T> arrayToList(final T[] arr){
+        final ArrayList<T> result = new ArrayList<>(arr.length + 8);
+        result.addAll(Arrays.asList(arr));
+        return result;
+    }
     public static final List<String> listOfString(final String ...args){
         final List<String> res = new ArrayList<>(args.length + 20);
         res.addAll(Arrays.asList(args));

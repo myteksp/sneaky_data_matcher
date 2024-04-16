@@ -31,21 +31,26 @@ public class UploadRepository {
     }
 
     public final void addRecord(final UploadDescriptor upload, final CsvUtil.CsvIterator iterator, final List<Tuple2<String, String>> record){
+        if (record.isEmpty())
+            return;
         final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
         queryParams.put("uploadName", upload.name);
         queryParams.put("uploadProcessed", iterator.getCurrentRow());
         final StringBuilder query = new StringBuilder(1024);
-        query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-        if (!record.isEmpty()) {
-            queryParams.put("rowId", StringUtil.generateId());
-            query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
-            for (int i = 0; i < record.size(); i++) {
-                final Tuple2<String, String> recordValue = record.get(i);
-                final String paramName = "p" + i;
-                query.append("MERGE (row)-[:OWNS]->(:").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
-                queryParams.put(paramName, recordValue.v2);
-            }
+        query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+        queryParams.put("rowId", StringUtil.generateId());
+        query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
+        for (int i = 0; i < record.size(); i++) {
+            final Tuple2<String, String> recordValue = record.get(i);
+            final String paramName = "p" + i;
+            query.append("MERGE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
+            queryParams.put(paramName, recordValue.v2);
         }
+
+        for (int i = 0; i < record.size(); i++) {
+            query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+        }
+
         final String queryString = query.toString();
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             session.executeWrite(tx-> tx.run(queryString, queryParams).consume());

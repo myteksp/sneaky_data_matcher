@@ -102,7 +102,7 @@ public final class SearchService {
                     final CsvUtil.CsvRecord record = iterator.next();
                     final List<Tuple2<String, String>> rowToSearch = new ArrayList<>(mappings.size());
                     for(final UploadMapping mapping : mappings){
-                        final String rawValue = record.getColumnVale(mapping.sourceColumn);
+                        final String rawValue = record.getColumnVale(mapping.sourceColumns.getFirst());
                         if (StringUtil.isNullOrBlank(rawValue))
                             continue;
                         final String value = StringTransformer.transform(rawValue, mapping.transformations);

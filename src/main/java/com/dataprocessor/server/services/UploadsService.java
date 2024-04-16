@@ -59,14 +59,25 @@ public final class UploadsService {
                     final CsvUtil.CsvRecord record = iterator.next();
                     final List<Tuple2<String, String>> records = new ArrayList<>(mappings.size());
                     for(final UploadMapping mapping : mappings){
-                        final String rawValue = record.getColumnVale(mapping.sourceColumn);
-                        if (StringUtil.isNullOrBlank(rawValue))
-                            continue;
-                        final String value = StringTransformer.transform(rawValue, mapping.transformations);
-                        if (StringUtil.isNullOrBlank(value))
-                            continue;
-
-                        records.add(new Tuple2<>(mapping.destinationColumn, value));
+                        final StringBuilder sb = new StringBuilder(128);
+                        for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
+                            final String sourceColumn = mapping.sourceColumns.get(i);
+                            final String rawValue = record.getColumnVale(sourceColumn);
+                            if (StringUtil.isNullOrBlank(rawValue))
+                                continue;
+                            final String value = StringTransformer.transform(rawValue, mapping.transformations);
+                            if (StringUtil.isNullOrBlank(value))
+                                continue;
+                            sb.append(value).append(" ");
+                        }
+                        final String rawValue = record.getColumnVale(mapping.sourceColumns.getLast());
+                        if (!StringUtil.isNullOrBlank(rawValue)){
+                            final String value = StringTransformer.transform(rawValue, mapping.transformations);
+                            if (!StringUtil.isNullOrBlank(value)){
+                                sb.append(value);
+                            }
+                        }
+                        records.add(new Tuple2<>(mapping.destinationColumn, sb.toString()));
                     }
                     repository.addRecord(uploadDescriptor, iterator, records);
 

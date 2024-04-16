@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class UploadMappingUtil {
@@ -32,9 +33,8 @@ public final class UploadMappingUtil {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mapping: '" + mapping + "'.");
             }
         }
-
         return new UploadMapping(
-                split[0],
+                ListUtils.arrayToList(split[0].split("\\|")),
                 StringTransformer.transform(split[1], List.of(StringTransformer.Transformation.TLC, StringTransformer.Transformation.NRM)),
                 transformations);
     }

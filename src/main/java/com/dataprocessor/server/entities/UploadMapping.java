@@ -7,15 +7,15 @@ import java.util.List;
 import java.util.Objects;
 
 public final class UploadMapping {
-    public String sourceColumn;
+    public List<String> sourceColumns;
     public String destinationColumn;
     public List<StringTransformer.Transformation> transformations;
 
     public UploadMapping(){}
-    public UploadMapping(final String sourceColumn,
+    public UploadMapping(final List<String> sourceColumns,
                          final String destinationColumn,
                          final List<StringTransformer.Transformation> transformations){
-        this.sourceColumn = sourceColumn;
+        this.sourceColumns = sourceColumns;
         this.destinationColumn = destinationColumn;
         this.transformations = transformations;
     }
@@ -25,18 +25,18 @@ public final class UploadMapping {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final UploadMapping that = (UploadMapping) o;
-        return Objects.equals(sourceColumn, that.sourceColumn) && Objects.equals(destinationColumn, that.destinationColumn) && Objects.equals(transformations, that.transformations);
+        return Objects.equals(sourceColumns, that.sourceColumns) && Objects.equals(destinationColumn, that.destinationColumn) && Objects.equals(transformations, that.transformations);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(sourceColumn, destinationColumn, transformations);
+        return Objects.hash(sourceColumns, destinationColumn, transformations);
     }
 
     @Override
     public final String toString() {
         return "UploadMapping{" +
-                "sourceColumn='" + sourceColumn + '\'' +
+                "sourceColumns=" + sourceColumns +
                 ", destinationColumn='" + destinationColumn + '\'' +
                 ", transformations=" + transformations +
                 '}';
