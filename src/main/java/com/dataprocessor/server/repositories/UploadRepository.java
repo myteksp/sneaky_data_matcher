@@ -46,11 +46,9 @@ public class UploadRepository {
             query.append("MERGE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
             queryParams.put(paramName, recordValue.v2);
         }
-
         for (int i = 0; i < record.size(); i++) {
             query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
         }
-
         final String queryString = query.toString();
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
