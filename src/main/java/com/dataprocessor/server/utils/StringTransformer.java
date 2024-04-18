@@ -9,7 +9,7 @@ public class StringTransformer {
     }
 
     public static final String transform(final String src, final List<Transformation> transformations){
-        String result = src;
+        String result = src==null?"":src;
         for (final Transformation transformation : transformations) {
             switch (transformation) {
                 case TLC -> result = result.toLowerCase();
