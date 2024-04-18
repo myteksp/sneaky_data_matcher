@@ -60,27 +60,18 @@ public final class UploadsService {
                     final List<Tuple2<String, String>> records = new ArrayList<>(mappings.size());
                     for(final UploadMapping mapping : mappings){
                         final StringBuilder sb = new StringBuilder(128);
+                        //Iterate over source columns as more than one is allowed (e.g. first and last name)
                         for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
-                            final String sourceColumn = mapping.sourceColumns.get(i);
-                            final String rawValue = record.getColumnVale(sourceColumn);
-                            if (StringUtil.isNullOrBlank(rawValue))
-                                continue;
-                            final String value = StringTransformer.transform(rawValue, mapping.transformations);
-                            if (StringUtil.isNullOrBlank(value))
-                                continue;
-                            sb.append(value).append(" ");
+                            sb.append(StringTransformer.transform(record.getColumnVale(mapping.sourceColumns.get(i)), mapping.transformations)).append(" ");
                         }
-                        final String rawValue = record.getColumnVale(mapping.sourceColumns.getLast());
-                        if (!StringUtil.isNullOrBlank(rawValue)){
-                            final String value = StringTransformer.transform(rawValue, mapping.transformations);
-                            if (!StringUtil.isNullOrBlank(value)){
-                                sb.append(value);
-                            }
+                        sb.append(StringTransformer.transform(record.getColumnVale(mapping.sourceColumns.getLast()), mapping.transformations));
+
+                        final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
+                        if (!StringUtil.isNullOrBlank(resultValue)){
+                            records.add(new Tuple2<>(mapping.destinationColumn, resultValue));
                         }
-                        records.add(new Tuple2<>(mapping.destinationColumn, sb.toString()));
                     }
                     repository.addRecord(uploadDescriptor, iterator, records);
-
                 }
                 repository.completeUploadWithSuccess(uploadDescriptor);
             }catch (final Throwable cause){
