@@ -101,7 +101,7 @@ public final class ExportsRepository {
         try {
             minioClient.putObject(PutObjectArgs
                     .builder()
-                    .bucket(bucket)
+                    .bucket(searchesBucket)
                     .object(name)
                     .stream(new ByteArrayInputStream(data), data.length, -1)
                     .build());
