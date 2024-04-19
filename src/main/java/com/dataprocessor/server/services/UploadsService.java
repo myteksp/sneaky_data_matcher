@@ -10,6 +10,7 @@ import com.dataprocessor.server.utils.StringTransformer;
 import com.dataprocessor.server.utils.StringUtil;
 import com.dataprocessor.server.utils.csv.CsvUtil;
 import com.dataprocessor.server.utils.tuples.Tuple2;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,30 @@ public final class UploadsService {
         this.sourceFilesRepository = sourceFilesRepository;
         this.columnsRepository = columnsRepository;
     }
+
+    private final String extractAndValidate(final CsvUtil.CsvRecord record,
+                                            final String rowName,
+                                            final List<StringTransformer.Transformation> transformations){
+        final String rowNameLowerCase = rowName.toLowerCase();
+        final String result = StringTransformer.transform(record.getColumnVale(rowName), transformations);
+        if (rowNameLowerCase.contains("mail")){
+            if (EmailValidator.getInstance(true, true).isValid(result)){
+                return result;
+            }else {
+                return "";
+            }
+        }
+        if (rowNameLowerCase.contains("phone")){
+            final String onlyNumber = result.replaceAll("[^\\d.]", "").replace('.', ' ').replace(" ", "");
+            if (onlyNumber.length() < 5){
+                return "";
+            }else{
+                return onlyNumber;
+            }
+        }
+        return result;
+    }
+
     public final UploadDescriptor ingest(final File file,
                                          final String uploadName,
                                          final List<UploadMapping> mappings){
@@ -62,9 +87,9 @@ public final class UploadsService {
                         final StringBuilder sb = new StringBuilder(128);
                         //Iterate over source columns as more than one is allowed (e.g. first and last name)
                         for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
-                            sb.append(StringTransformer.transform(record.getColumnVale(mapping.sourceColumns.get(i)), mapping.transformations)).append(" ");
+                            sb.append(extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
                         }
-                        sb.append(StringTransformer.transform(record.getColumnVale(mapping.sourceColumns.getLast()), mapping.transformations));
+                        sb.append(extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
 
                         final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
                         if (!StringUtil.isNullOrBlank(resultValue)){
