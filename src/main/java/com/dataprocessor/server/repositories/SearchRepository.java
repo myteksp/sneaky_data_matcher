@@ -54,9 +54,9 @@ public class SearchRepository {
             queryParams.put(paramName, q.query);
             switch (q.queryType){
                 case MATCHES -> sb.append("n.value = $").append(paramName);
-                case ENDS_WITH -> sb.append("n.value ends with $").append(paramName);
-                case STARTS_WITH -> sb.append("n.value starts with $").append(paramName);
-                case CONTAINS -> sb.append("n.value contains $").append(paramName);
+                case ENDS_WITH -> sb.append("n.value ENDS WITH $").append(paramName);
+                case STARTS_WITH -> sb.append("n.value STARTS WITH $").append(paramName);
+                case CONTAINS -> sb.append("n.value CONTAINS $").append(paramName);
             }
             sb.append(" ").append(predicate.toString()).append(" ");
         }
@@ -65,9 +65,9 @@ public class SearchRepository {
         queryParams.put(paramName, q.query);
         switch (q.queryType){
             case MATCHES -> sb.append("n.value = $").append(paramName).append(" ");
-            case ENDS_WITH -> sb.append("n.value ends with $").append(paramName).append(" ");
-            case STARTS_WITH -> sb.append("n.value starts with $").append(paramName).append(" ");
-            case CONTAINS -> sb.append("n.value contains $").append(paramName).append(" ");
+            case ENDS_WITH -> sb.append("n.value ENDS WITH $").append(paramName).append(" ");
+            case STARTS_WITH -> sb.append("n.value STARTS WITH $").append(paramName).append(" ");
+            case CONTAINS -> sb.append("n.value CONTAINS $").append(paramName).append(" ");
         }
         return sb.toString();
     }
@@ -96,9 +96,10 @@ public class SearchRepository {
                                                                      final int limit){
         final Map<String, Object> queryParams = new HashMap<>(32);
         final String query = String.format("MATCH (n:%s) WHERE %s RETURN n SKIP %d LIMIT %d;",
-                queries.stream().map(q->q.node).collect(Collectors.joining("|")),
+                queries.stream().map(q->q.node).distinct().collect(Collectors.joining("|")),
                 buildWhereClause(queries, predicate, queryParams),
                 skip, limit);
+        logger.info("Unlimited search: '{}' params: {}", query, JSON.toJson(queryParams));
         return enrichSeedSearch(query, queryParams, joinByColumns, maxJoinDepth);
     }
 
@@ -111,10 +112,11 @@ public class SearchRepository {
                                                                    final int limit){
         final Map<String, Object> queryParams = new HashMap<>(32);
         final String query = String.format("MATCH (n:%s)<-[:OWNS]-(:Row)<-[:OWNS]-(u:Upload) WHERE (%s) AND (%s) RETURN n SKIP %d LIMIT %d;",
-                queries.stream().map(q->q.node).collect(Collectors.joining("|")),
+                queries.stream().map(q->q.node).distinct().collect(Collectors.joining("|")),
                 buildWhereClause(queries, predicate, queryParams),
                 buildWhereClauseForUploads(limitByUploads, queryParams),
                 skip, limit);
+        logger.info("Limited search: '{}' params: {}", query, JSON.toJson(queryParams));
         return enrichSeedSearch(query, queryParams, joinByColumns, maxJoinDepth);
     }
 

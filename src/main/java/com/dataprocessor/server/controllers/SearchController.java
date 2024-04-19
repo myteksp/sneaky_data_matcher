@@ -31,9 +31,9 @@ public class SearchController {
                                                         @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
                                                         @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
                                                         @RequestParam(value = "joinOn", required = false)final List<String> joinByColumns,
-                                                        @RequestParam(value = "maxDepth", defaultValue = "10", required = false) final int maxJoinDepth,
+                                                        @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
                                                         @RequestParam(value = "skip", defaultValue = "0", required = false) final int skip,
-                                                        @RequestParam(value = "limit", defaultValue = "50", required = false) final int limit){
+                                                        @RequestParam(value = "limit", defaultValue = "10", required = false) final int limit){
 
         return service.search(
                 ListUtils.ifNullEmpty(columnSearches),
@@ -49,7 +49,7 @@ public class SearchController {
                                                  @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
                                                  @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
                                                  @RequestParam(value = "joinOn", required = false)final List<String> joinByColumns,
-                                                 @RequestParam(value = "maxDepth", defaultValue = "10", required = false) final int maxJoinDepth,
+                                                 @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
                                                  @RequestParam(value = "destination")final String exportDestination){
         service.searchAndExport(ListUtils.ifNullEmpty(columnSearches),
                 predicate,
@@ -70,7 +70,7 @@ public class SearchController {
                                                 @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
                                                 @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
                                                 @RequestParam(value = "joinOn", required = false)final List<String> joinByColumns,
-                                                @RequestParam(value = "maxDepth", defaultValue = "10", required = false) final int maxJoinDepth,
+                                                @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
                                                 @RequestParam(value = "destination")final String exportDestination){
         service.matchAndExport(TempFileUtil.copyToTmpFile(file),
                 ListUtils.ifNullEmpty(mappings),

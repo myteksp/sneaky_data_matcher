@@ -10,6 +10,16 @@ public final class StringUtil {
         return string.isBlank();
     }
 
+    public static final String ifNullOrBlank(final String string, final String defaultValue){
+        if (string == null)
+            return defaultValue;
+
+        if (string.isBlank())
+            return defaultValue;
+
+        return string;
+    }
+
     public static final String generateId(){
         return UUID.randomUUID().toString().replace("-", "");
     }
