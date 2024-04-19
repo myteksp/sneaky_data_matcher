@@ -69,7 +69,7 @@ public final class ExportsRepository {
     public final SearchEntity getSearchEntity(final String name){
         try {
             final byte[] bytes = minioClient.getObject(GetObjectArgs.builder()
-                    .bucket(bucket)
+                    .bucket(searchesBucket)
                     .object(name)
                     .build()).readAllBytes();
             return JSON.fromJson(new String(bytes, StandardCharsets.UTF_8), SearchEntity.class);
