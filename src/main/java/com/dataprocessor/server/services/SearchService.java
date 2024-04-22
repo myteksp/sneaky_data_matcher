@@ -1,9 +1,6 @@
 package com.dataprocessor.server.services;
 
-import com.dataprocessor.server.entities.GenericResponse;
-import com.dataprocessor.server.entities.LogicalPredicate;
-import com.dataprocessor.server.entities.SearchEntity;
-import com.dataprocessor.server.entities.UploadMapping;
+import com.dataprocessor.server.entities.*;
 import com.dataprocessor.server.repositories.ColumnsRepository;
 import com.dataprocessor.server.repositories.ExportsRepository;
 import com.dataprocessor.server.repositories.SearchRepository;
@@ -47,6 +44,17 @@ public final class SearchService {
         this.exportsRepository = exportsRepository;
     }
 
+    public final List<Map<String, List<String>>> searchForField(final List<String> columnSearches,
+                                                                final LogicalPredicate predicate,
+                                                                final List<String> limitByUploads,
+                                                                final String joinByColumn,
+                                                                final String field,
+                                                                final int maxJoinDepth,
+                                                                final int skip,
+                                                                final int limit){
+        throw new RuntimeException("NOT IMPLEMENTED");
+    }
+
     public final List<Map<String, List<String>>> search(final List<String> columnSearches,
                                                         final LogicalPredicate predicate,
                                                         final List<String> limitByUploads,
@@ -61,17 +69,31 @@ public final class SearchService {
         return exportsRepository.getSearchEntity(name);
     }
 
-    public final void matchAndExport(final File file,
-                                     final List<String> raw_mappings,
-                                     final LogicalPredicate predicate,
-                                     final List<String> limitByUploads,
-                                     final List<String> joinByColumns,
-                                     final int maxJoinDepth,
-                                     final String exportDestination){
+    public final MatchEntity getMatch(final String name){
+        return repository.getMatch(name);
+    }
+
+    public final MatchEntity forcefullyCompleteMatch(final String name){
+        return repository.completeMatchEntity(name);
+    }
+
+    public final List<MatchEntity> listMatches(final int skip, final int limit){
+        return repository.listMatches(skip, limit);
+    }
+
+    public final MatchEntity matchAndExport(final File file,
+                                            final List<String> raw_mappings,
+                                            final LogicalPredicate predicate,
+                                            final List<String> limitByUploads,
+                                            final List<String> joinByColumns,
+                                            final int maxJoinDepth,
+                                            final String exportDestination){
         if (exportsRepository.doesFileExist(exportDestination)){
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Export with name '" + exportDestination + "' already exists");
         }
         exportsRepository.saveSearch(exportDestination, new SearchEntity(raw_mappings, predicate, limitByUploads, joinByColumns, maxJoinDepth));
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        final MatchEntity resultEntity = repository.createMatchEntity(exportDestination, 0, iterator.getTotalRows());
         final List<UploadMapping> mappings = UploadMappingUtil.parse(raw_mappings);
         Thread.startVirtualThread(()->{
             final String[] header = columnsRepository.listAllColumn().toArray(new String[]{});
@@ -79,7 +101,6 @@ public final class SearchService {
             for (int i = 0; i < header.length; i++) {
                 headerMap.put(header[i], i);
             }
-            final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
             final File outputFile = TempFileUtil.createTmpFile(".csv");
             final CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
                     .setHeader(header)
@@ -111,6 +132,11 @@ public final class SearchService {
 
                         rowToSearch.add(new Tuple2<>(mapping.destinationColumn, value));
                     }
+                    final MatchEntity matchEntity = repository.updateMatchProgress(exportDestination, iterator.getCurrentRow());
+                    if (matchEntity.completed){
+                        //break while loop because the match was forcefully completed.
+                        break;
+                    }
                     //search the row
                     final List<Map<String, List<String>>> searchResults = search(rowToSearch.stream().map(t-> t.v1 + ":" + t.v2 + ":tlc:nrm").toList(), predicate, limitByUploads, joinByColumns, maxJoinDepth, 0, 1);
                     //store search results into output csv
@@ -135,6 +161,7 @@ public final class SearchService {
                         }
                     }
                 }
+                repository.completeMatchEntity(exportDestination);
             }catch (final Throwable cause){
                 logger.warn("Failure while matching '{}'", exportDestination, cause);
             }finally {
@@ -144,6 +171,7 @@ public final class SearchService {
             }
             exportsRepository.saveFile(exportDestination, outputFile);
         });
+        return resultEntity;
     }
 
     public final void searchAndExport(final List<String> columnSearches,

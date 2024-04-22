@@ -1,9 +1,6 @@
 package com.dataprocessor.server.controllers;
 
-import com.dataprocessor.server.entities.GenericResponse;
-import com.dataprocessor.server.entities.LogicalPredicate;
-import com.dataprocessor.server.entities.SearchEntity;
-import com.dataprocessor.server.entities.UploadDescriptor;
+import com.dataprocessor.server.entities.*;
 import com.dataprocessor.server.services.SearchService;
 import com.dataprocessor.server.utils.ListUtils;
 import com.dataprocessor.server.utils.TempFileUtil;
@@ -24,6 +21,24 @@ public class SearchController {
     @Autowired
     public SearchController(final SearchService service){
         this.service = service;
+    }
+
+    @GetMapping(value = "/searchForField", produces = MediaType.APPLICATION_JSON_VALUE)
+    public final List<Map<String, List<String>>> searchForField(@RequestParam(value = "columnAndQuery", required = false)final List<String> columnSearches,
+                                                                @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
+                                                                @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
+                                                                @RequestParam(value = "joinOn", required = false)final String joinByColumn,
+                                                                @RequestParam(value = "field", required = true)final String field,
+                                                                @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
+                                                                @RequestParam(value = "skip", defaultValue = "0", required = false) final int skip,
+                                                                @RequestParam(value = "limit", defaultValue = "10", required = false) final int limit){
+        return service.searchForField(
+                ListUtils.ifNullEmpty(columnSearches),
+                predicate,
+                ListUtils.ifNullEmpty(limitByUploads),
+                joinByColumn,
+                field,
+                maxJoinDepth, skip, limit);
     }
 
     @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -65,23 +80,35 @@ public class SearchController {
 
     @PostMapping(value = "/matchAndExport", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.OK)
-    public final GenericResponse matchAndExport(@RequestParam("file") final MultipartFile file,
-                                                @RequestParam("mappings") final List<String> mappings,
-                                                @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
-                                                @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
-                                                @RequestParam(value = "joinOn", required = false)final List<String> joinByColumns,
-                                                @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
-                                                @RequestParam(value = "destination")final String exportDestination){
-        service.matchAndExport(TempFileUtil.copyToTmpFile(file),
+    public final MatchEntity matchAndExport(@RequestParam("file") final MultipartFile file,
+                                            @RequestParam("mappings") final List<String> mappings,
+                                            @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
+                                            @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
+                                            @RequestParam(value = "joinOn", required = false)final List<String> joinByColumns,
+                                            @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
+                                            @RequestParam(value = "destination")final String exportDestination){
+        return service.matchAndExport(TempFileUtil.copyToTmpFile(file),
                 ListUtils.ifNullEmpty(mappings),
                 predicate,
                 ListUtils.ifNullEmpty(limitByUploads),
                 ListUtils.ifNullEmpty(joinByColumns),
                 maxJoinDepth, exportDestination);
-        return GenericResponse.builder()
-                .success(true)
-                .message("Match and export started. Destination file: '" + exportDestination + "'.")
-                .build();
+    }
+
+    @GetMapping(value = "/getMatch", produces = MediaType.APPLICATION_JSON_VALUE)
+    public final MatchEntity getExistingMatch(@RequestParam("fileName") final String name){
+        return service.getMatch(name);
+    }
+
+    @GetMapping(value = "/forcefullyCompleteMatch", produces = MediaType.APPLICATION_JSON_VALUE)
+    public final MatchEntity forcefullyCompleteMatch(@RequestParam("name") final String name){
+        return service.forcefullyCompleteMatch(name);
+    }
+
+    @GetMapping(value = "/listMatches", produces = MediaType.APPLICATION_JSON_VALUE)
+    public final List<MatchEntity> listMatches(@RequestParam(value = "skip", defaultValue = "0")final int skip,
+                                               @RequestParam(value = "limit", defaultValue = "100")final int limit){
+        return service.listMatches(skip, limit);
     }
 
 

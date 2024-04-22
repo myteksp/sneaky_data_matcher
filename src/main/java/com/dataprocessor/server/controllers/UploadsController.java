@@ -32,11 +32,6 @@ public class UploadsController {
         return service.ingest(TempFileUtil.copyToTmpFile(file), uploadName, UploadMappingUtil.parse(mappings));
     }
 
-    @GetMapping(value = "/listAllColumns", produces = MediaType.APPLICATION_JSON_VALUE)
-    public final List<String> listAllColumns(){
-        return service.listAllColumns();
-    }
-
     @GetMapping(value = "/listUnfinishedUploadDescriptors", produces = MediaType.APPLICATION_JSON_VALUE)
     public final List<UploadDescriptor> listUnfinishedUploads(){
         return service.listUnfinishedUploads();

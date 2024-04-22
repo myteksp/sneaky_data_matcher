@@ -125,8 +125,4 @@ public final class UploadsService {
     public final List<UploadDescriptor> listFinishedUploads(final int skip, final int limit){
         return repository.listFinishedUploads(skip, limit);
     }
-
-    public final List<String> listAllColumns(){
-        return columnsRepository.listAllColumn();
-    }
 }

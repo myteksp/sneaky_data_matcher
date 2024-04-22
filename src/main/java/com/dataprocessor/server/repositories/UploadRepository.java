@@ -30,14 +30,27 @@ public class UploadRepository {
         this.neo4jManager = neo4jManager;
     }
 
-    public final void addRecord(final UploadDescriptor upload, final CsvUtil.CsvIterator iterator, final List<Tuple2<String, String>> record){
+
+
+    public final void addRecord(final UploadDescriptor upload,
+                                final CsvUtil.CsvIterator iterator,
+                                final List<Tuple2<String, String>> record){
         if (record.isEmpty())
             return;
         final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
+        final long currentRow = iterator.getCurrentRow();
         queryParams.put("uploadName", upload.name);
-        queryParams.put("uploadProcessed", iterator.getCurrentRow());
-        final StringBuilder query = new StringBuilder(1024);
-        query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+        queryParams.put("uploadProcessed", currentRow);
+        final StringBuilder query = new StringBuilder(1024*2);
+        if (currentRow > 100){
+            if (currentRow % 10 == 0){
+                query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+            }else {
+                query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
+            }
+        }else {
+            query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+        }
         queryParams.put("rowId", StringUtil.generateId());
         query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
         for (int i = 0; i < record.size(); i++) {

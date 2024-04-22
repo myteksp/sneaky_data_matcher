@@ -22,6 +22,8 @@ public final class IndexManager {
     private final void ensureIndexes(){
         ensureIndex("iUploadsNameIndex", "Upload", "name");
         ensureIndex("iUploadsTimeIndex", "Upload", "timeStamp");
+        ensureIndex("iMatchIndex", "Match", "name");
+        ensureIndex("iMatchTimeIndex", "Match", "timeStamp");
     }
 
     public final void ensureIndex(final String indexName, final String nodeType, final String field){

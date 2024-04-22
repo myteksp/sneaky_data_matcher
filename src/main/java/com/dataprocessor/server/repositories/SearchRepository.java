@@ -1,6 +1,7 @@
 package com.dataprocessor.server.repositories;
 
 import com.dataprocessor.server.entities.LogicalPredicate;
+import com.dataprocessor.server.entities.MatchEntity;
 import com.dataprocessor.server.utils.ListUtils;
 import com.dataprocessor.server.utils.StringTransformer;
 import com.dataprocessor.server.utils.StringUtil;
@@ -43,6 +44,8 @@ public class SearchRepository {
             return limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
         }
     }
+
+
 
     private final String buildWhereClause(final List<SearchQuery> queries,
                                           final LogicalPredicate predicate,
@@ -118,6 +121,99 @@ public class SearchRepository {
                 skip, limit);
         logger.info("Limited search: '{}' params: {}", query, JSON.toJson(queryParams));
         return enrichSeedSearch(query, queryParams, joinByColumns, maxJoinDepth);
+    }
+
+    public final MatchEntity updateMatchProgress(final String name, final long processed){
+        final Map<String, Object> queryParams = new HashMap<>();
+        queryParams.put("name", name);
+        queryParams.put("processed", processed);
+        final String query = "MATCH (n:Match) WHERE n.name = $name SET n.processed = $processed;";
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWriteWithoutResult(tx-> tx.run(query, queryParams));
+        }catch (final Throwable cause){
+            logger.error("Failed to execute createMatchEntity query: '{}'. Params: {}. Cause:", query, JSON.toJson(queryParams), cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to execute createMatchEntity query.", cause);
+        }
+        return getMatch(name);
+    }
+
+    public final MatchEntity completeMatchEntity(final String name){
+        final Map<String, Object> queryParams = new HashMap<>();
+        queryParams.put("name", name);
+        queryParams.put("completed", true);
+        final String query = "MATCH (n:Match) WHERE n.name = $name SET n.completed = $completed;";
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWriteWithoutResult(tx-> tx.run(query, queryParams));
+        }catch (final Throwable cause){
+            logger.error("Failed to execute createMatchEntity query: '{}'. Params: {}. Cause:", query, JSON.toJson(queryParams), cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to execute createMatchEntity query.", cause);
+        }
+        return getMatch(name);
+    }
+
+    public final MatchEntity createMatchEntity(final String name,
+                                               final long processed,
+                                               final long outOf){
+        final Map<String, Object> queryParams = new HashMap<>();
+        final String query = "CREATE (n:Match {name: $name, processed: $processed, outOf: $outOf, completed: $completed, timeStamp: $timeStamp});";
+        queryParams.put("name", name);
+        queryParams.put("processed", processed);
+        queryParams.put("outOf", outOf);
+        queryParams.put("completed", processed == outOf);
+        queryParams.put("timeStamp", System.currentTimeMillis());
+        if (getMatch(name) != null){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Match entity with name '" + name + "' already exists.");
+        }
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWriteWithoutResult(tx-> tx.run(query, queryParams));
+        }catch (final Throwable cause){
+            logger.error("Failed to execute createMatchEntity query: '{}'. Params: {}. Cause:", query, JSON.toJson(queryParams), cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to execute createMatchEntity query.", cause);
+        }
+        return getMatch(name);
+    }
+
+    public final MatchEntity getMatch(final String name){
+        final Map<String, Object> queryParams = new HashMap<>();
+        final String query = "MATCH (n:Match) WHERE n.name = $name RETURN n;";
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            final List<MatchEntity> resList = session.run(query, queryParams).list().stream().map(r->{
+                final Node node = r.get("n").asNode();
+                return new MatchEntity(node.get("name").asString(),
+                        node.get("processed").asLong(),
+                        node.get("outOf").asLong(),
+                        node.get("completed").asBoolean(),
+                        node.get("timeStamp").asLong());
+            }).toList();
+            if (resList.isEmpty()){
+                return null;
+            }
+            return resList.getFirst();
+        }catch (final Throwable cause){
+            logger.error("Failed to execute getMatch query: '{}'. Params: {}. Cause:", query, JSON.toJson(queryParams), cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to execute getMatch query.", cause);
+        }
+    }
+
+    public final List<MatchEntity> listMatches(final int skip, final int limit){
+        final String query = String.format("MATCH (n:Match) RETURN n SKIP %d LIMIT %d;", skip, limit);
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            final List<MatchEntity> resList = session.run(query).list().stream().map(r->{
+                final Node node = r.get("n").asNode();
+                return new MatchEntity(node.get("name").asString(),
+                        node.get("processed").asLong(),
+                        node.get("outOf").asLong(),
+                        node.get("completed").asBoolean(),
+                        node.get("timeStamp").asLong());
+            }).toList();
+            if (resList.isEmpty()){
+                return null;
+            }
+            return resList;
+        }catch (final Throwable cause){
+            logger.error("Failed to execute getMatch query: '{}'. Cause:", query, cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to execute getMatch query.", cause);
+        }
     }
 
     private final List<Map<String, List<String>>> enrichSeedSearch(final String seedQuery,
