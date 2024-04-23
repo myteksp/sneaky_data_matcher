@@ -31,7 +31,6 @@ public class UploadRepository {
     }
 
 
-
     public final void addRecord(final UploadDescriptor upload,
                                 final CsvUtil.CsvIterator iterator,
                                 final List<Tuple2<String, String>> record){
@@ -43,13 +42,19 @@ public class UploadRepository {
         queryParams.put("uploadProcessed", currentRow);
         final StringBuilder query = new StringBuilder(1024*2);
         if (currentRow > 100){
-            if (currentRow % 10 == 0){
+            if (currentRow < (iterator.getTotalRows()-100)){
+                if (currentRow % 100 == 0){
+                    query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+                    logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), ((double)iterator.getCurrentRow() / (double) iterator.getTotalRows())*100.0);
+                }else {
+                    query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
+                }
+            }else{
                 query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-            }else {
-                query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
             }
         }else {
             query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+            logger.info("Upload '{}' Row {} out of {}.", upload.name, iterator.getCurrentRow(), iterator.getTotalRows());
         }
         queryParams.put("rowId", StringUtil.generateId());
         query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
@@ -68,7 +73,7 @@ public class UploadRepository {
         }catch (final Throwable cause){
             logger.error("Failed to add a record. Query: '{}'", queryString, cause);
         }
-        logger.info("Upload '{}' Row {} out of {}.", upload.name, iterator.getCurrentRow(), iterator.getTotalRows());
+
     }
     public final UploadDescriptor createUpload(final String uploadName,
                                                final List<UploadMapping> mappings,

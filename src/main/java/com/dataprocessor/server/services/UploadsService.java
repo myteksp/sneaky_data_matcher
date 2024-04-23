@@ -64,6 +64,65 @@ public final class UploadsService {
         return result;
     }
 
+    public final UploadDescriptor continueIngestion(final String uploadName){
+        final UploadDescriptor uploadDescriptor = getUploadDescriptorByName(uploadName);
+        if (uploadDescriptor == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload with name '" + uploadName + "' not found.");
+        }
+        if (uploadDescriptor.status != UploadDescriptor.Status.PROCESSING){
+            logger.warn("Upload status is finished.");
+            return uploadDescriptor;
+        }
+        final File file;
+        try {
+            file = sourceFilesRepository.getSourceFile(uploadName);
+        }catch (final Throwable cause){
+            logger.warn("Source file not found.", cause);
+            return uploadDescriptor;
+        }
+        ensureMappingIndexes(uploadDescriptor.mappings);
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        for (long i=0; i < uploadDescriptor.processed; i++){
+            if (iterator.hasNext()){
+                iterator.next();
+            }else {
+                try{iterator.close();}catch (final Throwable ignored){}
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Upload with name '" + uploadName + "' has wrong size.");
+            }
+        }
+        Thread.startVirtualThread(()->{
+            try {
+                while (iterator.hasNext()){
+                    final CsvUtil.CsvRecord record = iterator.next();
+                    final List<Tuple2<String, String>> records = new ArrayList<>(uploadDescriptor.mappings.size());
+                    for(final UploadMapping mapping : uploadDescriptor.mappings){
+                        final StringBuilder sb = new StringBuilder(128);
+                        //Iterate over source columns as more than one is allowed (e.g. first and last name)
+                        for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
+                            sb.append(extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
+                        }
+                        sb.append(extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
+
+                        final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
+                        if (!StringUtil.isNullOrBlank(resultValue)){
+                            records.add(new Tuple2<>(mapping.destinationColumn, resultValue));
+                        }
+                    }
+                    repository.addRecord(uploadDescriptor, iterator, records);
+                }
+                repository.completeUploadWithSuccess(uploadDescriptor);
+            }catch (final Throwable cause){
+                logger.warn("Failure while ingesting upload '{}'", uploadName, cause);
+                repository.completeUploadWithError(uploadDescriptor);
+            }finally {
+                try{iterator.close();}catch (final Throwable ignored){}
+            }
+        });
+        return uploadDescriptor;
+    }
+
+
+
     public final UploadDescriptor ingest(final File file,
                                          final String uploadName,
                                          final List<UploadMapping> mappings){

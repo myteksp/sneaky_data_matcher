@@ -1,10 +1,9 @@
 package com.dataprocessor.server.repositories;
 
-import io.minio.BucketExistsArgs;
-import io.minio.MakeBucketArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import com.dataprocessor.server.utils.TempFileUtil;
+import io.minio.*;
 import io.minio.errors.*;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
@@ -49,6 +46,20 @@ public final class SourceFilesRepository {
         }catch (final Throwable cause){
             logger.warn("Failed to save source file '{}'", name, cause);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload source file '" + name + "'.", cause);
+        }
+    }
+
+    public final File getSourceFile(final String name){
+        try {
+            final File res = TempFileUtil.createTmpFile(".data");
+            FileUtils.copyInputStreamToFile(minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(name)
+                    .build()), res);
+            return res;
+        }catch (final Throwable cause){
+            logger.warn("Failed to get source file '{}'", name, cause);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to get source file '" + name + "'.", cause);
         }
     }
 }
