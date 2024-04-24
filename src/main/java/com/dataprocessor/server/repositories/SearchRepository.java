@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,29 +51,19 @@ public class SearchRepository {
     private final String buildWhereClause(final List<SearchQuery> queries,
                                           final LogicalPredicate predicate,
                                           final Map<String, Object> queryParams){
-        final StringBuilder sb = new StringBuilder(1024);
-        for (int i = 0; i < queries.size()-1; i++) {
-            final String paramName = "p" + i;
-            final SearchQuery q = queries.get(i);
+        final AtomicInteger counter = new AtomicInteger(0);
+        return queries.stream().map(q->{
+            final StringBuilder bld = new StringBuilder(128);
+            final String paramName = "p_" + counter.incrementAndGet();
             queryParams.put(paramName, q.query);
             switch (q.queryType){
-                case MATCHES -> sb.append("n.value = $").append(paramName);
-                case ENDS_WITH -> sb.append("n.value ENDS WITH $").append(paramName);
-                case STARTS_WITH -> sb.append("n.value STARTS WITH $").append(paramName);
-                case CONTAINS -> sb.append("n.value CONTAINS $").append(paramName);
+                case MATCHES -> bld.append("n.value = $").append(paramName);
+                case ENDS_WITH -> bld.append("n.value ENDS WITH $").append(paramName);
+                case STARTS_WITH -> bld.append("n.value STARTS WITH $").append(paramName);
+                case CONTAINS -> bld.append("n.value CONTAINS $").append(paramName);
             }
-            sb.append(" ").append(predicate.toString()).append(" ");
-        }
-        final String paramName = "p" + queries.size();
-        final SearchQuery q = queries.getLast();
-        queryParams.put(paramName, q.query);
-        switch (q.queryType){
-            case MATCHES -> sb.append("n.value = $").append(paramName).append(" ");
-            case ENDS_WITH -> sb.append("n.value ENDS WITH $").append(paramName).append(" ");
-            case STARTS_WITH -> sb.append("n.value STARTS WITH $").append(paramName).append(" ");
-            case CONTAINS -> sb.append("n.value CONTAINS $").append(paramName).append(" ");
-        }
-        return sb.toString();
+            return bld.toString();
+        }).collect(Collectors.joining(" " + predicate.toString() + " "));
     }
 
     private final String buildWhereClauseForUploads(final List<String> uploads,

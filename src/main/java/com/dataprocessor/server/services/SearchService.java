@@ -126,6 +126,7 @@ public final class SearchService {
                         final String rawValue = record.getColumnVale(mapping.sourceColumns.getFirst());
                         if (StringUtil.isNullOrBlank(rawValue))
                             continue;
+
                         final String value = StringTransformer.transform(rawValue, mapping.transformations);
                         if (StringUtil.isNullOrBlank(value))
                             continue;
@@ -136,6 +137,9 @@ public final class SearchService {
                     if (matchEntity.completed){
                         //break while loop because the match was forcefully completed.
                         break;
+                    }
+                    if (rowToSearch.isEmpty()){
+                        continue;
                     }
                     //search the row
                     final List<Map<String, List<String>>> searchResults = search(rowToSearch.stream().map(t-> t.v1 + ":" + t.v2 + ":tlc:nrm").toList(), predicate, limitByUploads, joinByColumns, maxJoinDepth, 0, 1);
