@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,8 +25,11 @@ import java.util.stream.Collectors;
 
 @Service
 public class UploadRepository {
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
+
+
     @Autowired
     public UploadRepository(final Neo4jManager neo4jManager){
         this.neo4jManager = neo4jManager;
@@ -40,22 +45,8 @@ public class UploadRepository {
         final long currentRow = iterator.getCurrentRow();
         queryParams.put("uploadName", upload.name);
         queryParams.put("uploadProcessed", currentRow);
-        final StringBuilder query = new StringBuilder(1024*2);
-        if (currentRow > 100){
-            if (currentRow < (iterator.getTotalRows()-100)){
-                if (currentRow % 100 == 0){
-                    query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-                    logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), ((double)iterator.getCurrentRow() / (double) iterator.getTotalRows())*100.0);
-                }else {
-                    query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
-                }
-            }else{
-                query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-            }
-        }else {
-            query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-            logger.info("Upload '{}' Row {} out of {}.", upload.name, iterator.getCurrentRow(), iterator.getTotalRows());
-        }
+        final StringBuilder query = new StringBuilder(1024);
+        query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
         queryParams.put("rowId", StringUtil.generateId());
         query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
         for (int i = 0; i < record.size(); i++) {
@@ -73,8 +64,10 @@ public class UploadRepository {
         }catch (final Throwable cause){
             logger.error("Failed to add a record. Query: '{}'", queryString, cause);
         }
-
+        logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
     }
+
+
     public final UploadDescriptor createUpload(final String uploadName,
                                                final List<UploadMapping> mappings,
                                                final CsvUtil.CsvIterator iterator){

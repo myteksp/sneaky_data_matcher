@@ -175,6 +175,7 @@ public class SearchRepository {
 
     public final MatchEntity getMatch(final String name){
         final Map<String, Object> queryParams = new HashMap<>();
+        queryParams.put("name", name);
         final String query = "MATCH (n:Match) WHERE n.name = $name RETURN n;";
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             final List<MatchEntity> resList = session.run(query, queryParams).list().stream().map(r->{

@@ -70,15 +70,17 @@ public final class UploadsService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload with name '" + uploadName + "' not found.");
         }
         if (uploadDescriptor.status != UploadDescriptor.Status.PROCESSING){
+            repository.completeUploadWithError(uploadDescriptor);
             logger.warn("Upload status is finished.");
-            return uploadDescriptor;
+            return null;
         }
         final File file;
         try {
             file = sourceFilesRepository.getSourceFile(uploadName);
         }catch (final Throwable cause){
+            repository.completeUploadWithError(uploadDescriptor);
             logger.warn("Source file not found.", cause);
-            return uploadDescriptor;
+            return null;
         }
         ensureMappingIndexes(uploadDescriptor.mappings);
         final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
