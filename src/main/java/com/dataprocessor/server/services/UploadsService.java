@@ -29,39 +29,22 @@ public final class UploadsService {
     private final IndexManager indexManager;
     private final SourceFilesRepository sourceFilesRepository;
     private final ColumnsRepository columnsRepository;
+    private final NormalizedFilesService normalizedFilesService;
+    private final RecordValidationUtilService recordValidationUtilService;
 
     @Autowired
     public UploadsService(final UploadRepository repository,
                           final IndexManager indexManager,
                           final SourceFilesRepository sourceFilesRepository,
-                          final ColumnsRepository columnsRepository){
+                          final ColumnsRepository columnsRepository,
+                          final NormalizedFilesService normalizedFilesService,
+                          final RecordValidationUtilService recordValidationUtilService){
         this.repository = repository;
         this.indexManager = indexManager;
         this.sourceFilesRepository = sourceFilesRepository;
         this.columnsRepository = columnsRepository;
-    }
-
-    private final String extractAndValidate(final CsvUtil.CsvRecord record,
-                                            final String rowName,
-                                            final List<StringTransformer.Transformation> transformations){
-        final String rowNameLowerCase = rowName.toLowerCase();
-        final String result = StringTransformer.transform(record.getColumnVale(rowName), transformations);
-        if (rowNameLowerCase.contains("mail")){
-            if (EmailValidator.getInstance(true, true).isValid(result)){
-                return result;
-            }else {
-                return "";
-            }
-        }
-        if (rowNameLowerCase.contains("phone")){
-            final String onlyNumber = result.replaceAll("[^\\d.]", "").replace('.', ' ').replace(" ", "");
-            if (onlyNumber.length() < 5){
-                return "";
-            }else{
-                return onlyNumber;
-            }
-        }
-        return result;
+        this.normalizedFilesService = normalizedFilesService;
+        this.recordValidationUtilService = recordValidationUtilService;
     }
 
     public final UploadDescriptor continueIngestion(final String uploadName){
@@ -101,9 +84,9 @@ public final class UploadsService {
                         final StringBuilder sb = new StringBuilder(128);
                         //Iterate over source columns as more than one is allowed (e.g. first and last name)
                         for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
-                            sb.append(extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
+                            sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
                         }
-                        sb.append(extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
+                        sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
 
                         final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
                         if (!StringUtil.isNullOrBlank(resultValue)){
@@ -124,18 +107,24 @@ public final class UploadsService {
     }
 
 
+    public final UploadDescriptor nativeIngest(final File file,
+                                               final String uploadName,
+                                               final List<UploadMapping> mappings){
+        final CsvUtil.CsvIterator iterator = openIterator(file, uploadName);
+        ensureMappingIndexes(mappings);
+        final UploadDescriptor uploadDescriptor = repository.createUpload(uploadName, mappings, iterator);
+        sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
+        normalizedFilesService.normalizeAndServeCsv(iterator, uploadDescriptor.name, uploadDescriptor.mappings);
+        try{iterator.close();}catch (final Throwable ignored){}
+        repository.nativeIngest(uploadDescriptor, uploadDescriptor.mappings);
+        repository.completeUploadWithSuccess(uploadDescriptor);
+        return getUploadDescriptorByName(uploadDescriptor.name);
+    }
 
     public final UploadDescriptor ingest(final File file,
                                          final String uploadName,
                                          final List<UploadMapping> mappings){
-        if (getUploadDescriptorByName(uploadName) != null){
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");
-        }
-        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
-        if (getUploadDescriptorByName(uploadName) != null){
-            try{iterator.close();}catch (final Throwable ignored){}
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");
-        }
+        final CsvUtil.CsvIterator iterator = openIterator(file, uploadName);
         ensureMappingIndexes(mappings);
         final UploadDescriptor uploadDescriptor = repository.createUpload(uploadName, mappings, iterator);
         sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
@@ -148,9 +137,9 @@ public final class UploadsService {
                         final StringBuilder sb = new StringBuilder(128);
                         //Iterate over source columns as more than one is allowed (e.g. first and last name)
                         for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
-                            sb.append(extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
+                            sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
                         }
-                        sb.append(extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
+                        sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
 
                         final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
                         if (!StringUtil.isNullOrBlank(resultValue)){
@@ -168,6 +157,18 @@ public final class UploadsService {
             }
         });
         return uploadDescriptor;
+    }
+
+    private final CsvUtil.CsvIterator openIterator(final File file, final String uploadName){
+        if (getUploadDescriptorByName(uploadName) != null){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");
+        }
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        if (getUploadDescriptorByName(uploadName) != null){
+            try{iterator.close();}catch (final Throwable ignored){}
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");
+        }
+        return iterator;
     }
 
     private final void ensureMappingIndexes(final List<UploadMapping> mappings){

@@ -24,21 +24,22 @@ public class SearchController {
     }
 
     @GetMapping(value = "/searchForField", produces = MediaType.APPLICATION_JSON_VALUE)
-    public final List<Map<String, List<String>>> searchForField(@RequestParam(value = "columnAndQuery", required = false)final List<String> columnSearches,
-                                                                @RequestParam(value = "predicate", required = false, defaultValue = "AND") final LogicalPredicate predicate,
+    public final List<Map<String, List<String>>> searchForField(@RequestParam(value = "column")final String column,
+                                                                @RequestParam(value = "query") final String query,
+                                                                @RequestParam(value = "queryType") final QueryType queryType,
                                                                 @RequestParam(value = "uploads", required = false) final List<String> limitByUploads,
-                                                                @RequestParam(value = "joinOn", required = false)final String joinByColumn,
-                                                                @RequestParam(value = "field", required = true)final String field,
+                                                                @RequestParam(value = "joinOn", required = false) final List<String> joinByColumn,
                                                                 @RequestParam(value = "maxDepth", defaultValue = "2", required = false) final int maxJoinDepth,
                                                                 @RequestParam(value = "skip", defaultValue = "0", required = false) final int skip,
                                                                 @RequestParam(value = "limit", defaultValue = "10", required = false) final int limit){
         return service.searchForField(
-                ListUtils.ifNullEmpty(columnSearches),
-                predicate,
+                column,
+                query,
+                queryType,
                 ListUtils.ifNullEmpty(limitByUploads),
-                joinByColumn,
-                field,
-                maxJoinDepth, skip, limit);
+                ListUtils.ifNullEmpty(joinByColumn),
+                maxJoinDepth,
+                skip, limit);
     }
 
     @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)

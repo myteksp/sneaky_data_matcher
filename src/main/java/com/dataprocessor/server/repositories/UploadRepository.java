@@ -11,6 +11,7 @@ import org.neo4j.driver.SessionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,13 +29,54 @@ public class UploadRepository {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
+    private final String baseUrl;
 
 
     @Autowired
-    public UploadRepository(final Neo4jManager neo4jManager){
+    public UploadRepository(final Neo4jManager neo4jManager,
+                            @Value("${config.server.url}") final String domain,
+                            @Value("${server.port}") final String port){
+        this.baseUrl = domain + ":" + port + "/";
         this.neo4jManager = neo4jManager;
     }
 
+    private final String createUploadRoot(final UploadDescriptor upload){
+        final Map<String, Object> queryParams = new HashMap<>(16);
+        queryParams.put("uploadName", upload.name);
+        queryParams.put("uploadProcessed", upload.outOf);
+        final String queryString = "MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed";
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
+        }catch (final Throwable cause){
+            logger.error("Failed create upload root. Query: '{}'", queryString, cause);
+        }
+        return upload.name;
+    }
+
+    public final void nativeIngest(final UploadDescriptor upload,
+                                   final List<UploadMapping> mappings){
+        final String url = baseUrl + "normalizedUploads?name=" + upload.name;
+        final StringBuilder query = new StringBuilder(1024);
+        final Map<String, Object> queryParams = new HashMap<>(16 + (mappings.size() * 2));
+        queryParams.put("uploadName", createUploadRoot(upload));
+        query.append("LOAD CSV WITH HEADERS FROM '").append(url).append("' AS ROW").append('\n');
+        query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
+        query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:ROW._ROW_ID})").append('\n');
+        for (int i = 0; i < mappings.size(); i++) {
+            final UploadMapping mapping = mappings.get(i);
+            query.append("MERGE (n").append(i).append(":").append(mapping.destinationColumn).append(" {value:ROW.").append(mapping.destinationColumn).append("})").append('\n');
+        }
+        for (int i = 0; i < mappings.size(); i++) {
+            query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+        }
+        final String queryString = query.toString();
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
+        }catch (final Throwable cause){
+            logger.error("Failed to load CSV. Query: '{}'", queryString, cause);
+        }
+        logger.info("Running INGEST CSV query: '{}', Params: {}", query, JSON.toPrettyJson(queryParams));
+    }
 
     public final void addRecord(final UploadDescriptor upload,
                                 final CsvUtil.CsvIterator iterator,

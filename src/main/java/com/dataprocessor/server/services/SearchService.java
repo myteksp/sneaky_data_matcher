@@ -44,15 +44,35 @@ public final class SearchService {
         this.exportsRepository = exportsRepository;
     }
 
-    public final List<Map<String, List<String>>> searchForField(final List<String> columnSearches,
-                                                                final LogicalPredicate predicate,
+    public final List<Map<String, List<String>>> searchForField(final String column,
+                                                                final String query,
+                                                                final QueryType queryType,
                                                                 final List<String> limitByUploads,
-                                                                final String joinByColumn,
-                                                                final String field,
+                                                                final List<String> joinByColumn,
                                                                 final int maxJoinDepth,
                                                                 final int skip,
                                                                 final int limit){
-        throw new RuntimeException("NOT IMPLEMENTED");
+        return repository.search(convertQuery(column, query, queryType), LogicalPredicate.AND, limitByUploads, joinByColumn, maxJoinDepth, skip, limit);
+    }
+
+    private final List<String> convertQuery(final String column,
+                                            final String query,
+                                            final QueryType queryType){
+        switch (queryType){
+            case EQUALS -> {
+                return List.of(column + ":" + query);
+            }
+            case CONTAINS -> {
+                return List.of(column + ":>" + query + "<");
+            }
+            case STARTS_WITH -> {
+                return List.of(column + ":" + query + "<");
+            }
+            case ENDS_WITH -> {
+                return List.of(column + ":>" + query);
+            }
+            default -> throw new RuntimeException("Operation not supported.");
+        }
     }
 
     public final List<Map<String, List<String>>> search(final List<String> columnSearches,
