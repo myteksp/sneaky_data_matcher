@@ -72,11 +72,13 @@ public class UploadRepository {
 
         final String queryString = query.toString();
         logger.info("Running INGEST CSV query: '{}', Params: {}", queryString, JSON.toPrettyJson(queryParams));
+        final long startTime = System.currentTimeMillis();
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
         }catch (final Throwable cause){
             logger.error("Failed to load CSV. Query: '{}'", queryString, cause);
         }
+        logger.info("Long query execution took {} milliseconds.", (System.currentTimeMillis() - startTime));
     }
 
     public final void addRecord(final UploadDescriptor upload,
