@@ -71,12 +71,12 @@ public class UploadRepository {
         }
 
         final String queryString = query.toString();
+        logger.info("Running INGEST CSV query: '{}', Params: {}", queryString, JSON.toPrettyJson(queryParams));
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
         }catch (final Throwable cause){
             logger.error("Failed to load CSV. Query: '{}'", queryString, cause);
         }
-        logger.info("Running INGEST CSV query: '{}', Params: {}", query, JSON.toPrettyJson(queryParams));
     }
 
     public final void addRecord(final UploadDescriptor upload,
