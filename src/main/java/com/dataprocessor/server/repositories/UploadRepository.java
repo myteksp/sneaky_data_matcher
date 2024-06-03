@@ -64,11 +64,12 @@ public class UploadRepository {
         query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:ROW._ROW_ID})").append('\n');
         for (int i = 0; i < mappings.size(); i++) {
             final UploadMapping mapping = mappings.get(i);
+            query.append("FOREACH (n IN (CASE WHEN ROW.").append(mapping.destinationColumn).append(" IS NULL THEN [] ELSE [1] END) |").append('\n');
             query.append("MERGE (n").append(i).append(":").append(mapping.destinationColumn).append(" {value:ROW.").append(mapping.destinationColumn).append("})").append('\n');
-        }
-        for (int i = 0; i < mappings.size(); i++) {
             query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+            query.append(")").append('\n').append('\n');
         }
+
         final String queryString = query.toString();
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
