@@ -72,7 +72,7 @@ public class UploadRepository {
             }catch (final Throwable cause){
                 logger.error("Failed to add a record. Query: '{}'", queryString, cause);
             }
-            logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+            logger.info("Parallel upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
         });
     }
 
