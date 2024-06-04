@@ -29,7 +29,7 @@ public final class BlockingExecutor {
     }
 
     public BlockingExecutor(){
-        this(Math.max(20, Runtime.getRuntime().availableProcessors() * 4));
+        this(Math.max(10, Runtime.getRuntime().availableProcessors() * 4));
     }
 
     public final void execute(final Runnable task){
