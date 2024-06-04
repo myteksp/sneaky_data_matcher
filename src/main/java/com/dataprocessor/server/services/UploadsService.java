@@ -28,22 +28,16 @@ public final class UploadsService {
     private final UploadRepository repository;
     private final IndexManager indexManager;
     private final SourceFilesRepository sourceFilesRepository;
-    private final ColumnsRepository columnsRepository;
-    private final NormalizedFilesService normalizedFilesService;
     private final RecordValidationUtilService recordValidationUtilService;
 
     @Autowired
     public UploadsService(final UploadRepository repository,
                           final IndexManager indexManager,
                           final SourceFilesRepository sourceFilesRepository,
-                          final ColumnsRepository columnsRepository,
-                          final NormalizedFilesService normalizedFilesService,
                           final RecordValidationUtilService recordValidationUtilService){
         this.repository = repository;
         this.indexManager = indexManager;
         this.sourceFilesRepository = sourceFilesRepository;
-        this.columnsRepository = columnsRepository;
-        this.normalizedFilesService = normalizedFilesService;
         this.recordValidationUtilService = recordValidationUtilService;
     }
 
@@ -104,21 +98,6 @@ public final class UploadsService {
             }
         });
         return uploadDescriptor;
-    }
-
-
-    public final UploadDescriptor nativeIngest(final File file,
-                                               final String uploadName,
-                                               final List<UploadMapping> mappings){
-        final CsvUtil.CsvIterator iterator = openIterator(file, uploadName);
-        ensureMappingIndexes(mappings);
-        final UploadDescriptor uploadDescriptor = repository.createUpload(uploadName, mappings, iterator);
-        sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
-        normalizedFilesService.normalizeAndServeCsv(iterator, uploadDescriptor.name, uploadDescriptor.mappings);
-        try{iterator.close();}catch (final Throwable ignored){}
-        repository.nativeIngest(uploadDescriptor, uploadDescriptor.mappings);
-        repository.completeUploadWithSuccess(uploadDescriptor);
-        return getUploadDescriptorByName(uploadDescriptor.name);
     }
 
     public final UploadDescriptor ingest(final File file,

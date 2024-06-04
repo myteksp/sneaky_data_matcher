@@ -32,14 +32,6 @@ public class UploadsController {
         return service.ingest(TempFileUtil.copyToTmpFile(file), uploadName, UploadMappingUtil.parse(mappings));
     }
 
-    @PostMapping(value = "/nativeUpload", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(HttpStatus.OK)
-    public final UploadDescriptor nativeUpload(@RequestParam("file") final MultipartFile file,
-                                               @RequestParam("name") final String uploadName,
-                                               @RequestParam("mappings") final List<String> mappings){
-        return service.nativeIngest(TempFileUtil.copyToTmpFile(file), uploadName, UploadMappingUtil.parse(mappings));
-    }
-
     @GetMapping(value = "/listUnfinishedUploadDescriptors", produces = MediaType.APPLICATION_JSON_VALUE)
     public final List<UploadDescriptor> listUnfinishedUploads(){
         return service.listUnfinishedUploads();

@@ -2,6 +2,7 @@ package com.dataprocessor.server.repositories;
 
 import com.dataprocessor.server.entities.UploadDescriptor;
 import com.dataprocessor.server.entities.UploadMapping;
+import com.dataprocessor.server.utils.BlockingExecutor;
 import com.dataprocessor.server.utils.StringUtil;
 import com.dataprocessor.server.utils.csv.CsvUtil;
 import com.dataprocessor.server.utils.json.JSON;
@@ -30,6 +31,7 @@ public class UploadRepository {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
     private final String baseUrl;
+    private final BlockingExecutor blockingExecutor;
 
 
     @Autowired
@@ -38,47 +40,7 @@ public class UploadRepository {
                             @Value("${server.port}") final String port){
         this.baseUrl = domain + ":" + port + "/";
         this.neo4jManager = neo4jManager;
-    }
-
-    private final String createUploadRoot(final UploadDescriptor upload){
-        final Map<String, Object> queryParams = new HashMap<>(16);
-        queryParams.put("uploadName", upload.name);
-        queryParams.put("uploadProcessed", upload.outOf);
-        final String queryString = "MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed";
-        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
-            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
-        }catch (final Throwable cause){
-            logger.error("Failed create upload root. Query: '{}'", queryString, cause);
-        }
-        return upload.name;
-    }
-
-    public final void nativeIngest(final UploadDescriptor upload,
-                                   final List<UploadMapping> mappings){
-        final String url = baseUrl + "normalizedUploads?name=" + upload.name;
-        final StringBuilder query = new StringBuilder(1024);
-        final Map<String, Object> queryParams = new HashMap<>(16 + (mappings.size() * 2));
-        queryParams.put("uploadName", createUploadRoot(upload));
-        query.append("LOAD CSV WITH HEADERS FROM '").append(url).append("' AS ROW").append('\n');
-        query.append("MATCH (upload:Upload {name:$uploadName})").append('\n');
-        query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:ROW._ROW_ID})").append('\n');
-        for (int i = 0; i < mappings.size(); i++) {
-            final UploadMapping mapping = mappings.get(i);
-            query.append("FOREACH (n IN (CASE WHEN ROW.").append(mapping.destinationColumn).append(" IS NULL THEN [] ELSE [1] END) |").append('\n');
-            query.append("MERGE (n").append(i).append(":").append(mapping.destinationColumn).append(" {value:ROW.").append(mapping.destinationColumn).append("})").append('\n');
-            query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
-            query.append(")").append('\n').append('\n');
-        }
-
-        final String queryString = query.toString();
-        logger.info("Running INGEST CSV query: '{}', Params: {}", queryString, JSON.toPrettyJson(queryParams));
-        final long startTime = System.currentTimeMillis();
-        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
-            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
-        }catch (final Throwable cause){
-            logger.error("Failed to load CSV. Query: '{}'", queryString, cause);
-        }
-        logger.info("Long query execution took {} milliseconds.", (System.currentTimeMillis() - startTime));
+        this.blockingExecutor = new BlockingExecutor(1024);
     }
 
     public final void addRecord(final UploadDescriptor upload,
@@ -86,30 +48,32 @@ public class UploadRepository {
                                 final List<Tuple2<String, String>> record){
         if (record.isEmpty())
             return;
-        final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
-        final long currentRow = iterator.getCurrentRow();
-        queryParams.put("uploadName", upload.name);
-        queryParams.put("uploadProcessed", currentRow);
-        final StringBuilder query = new StringBuilder(1024);
-        query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-        queryParams.put("rowId", StringUtil.generateId());
-        query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
-        for (int i = 0; i < record.size(); i++) {
-            final Tuple2<String, String> recordValue = record.get(i);
-            final String paramName = "p" + i;
-            query.append("MERGE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
-            queryParams.put(paramName, recordValue.v2);
-        }
-        for (int i = 0; i < record.size(); i++) {
-            query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
-        }
-        final String queryString = query.toString();
-        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
-            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
-        }catch (final Throwable cause){
-            logger.error("Failed to add a record. Query: '{}'", queryString, cause);
-        }
-        logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+        blockingExecutor.execute(()->{
+            final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
+            final long currentRow = iterator.getCurrentRow();
+            queryParams.put("uploadName", upload.name);
+            queryParams.put("uploadProcessed", currentRow);
+            final StringBuilder query = new StringBuilder(1024);
+            query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+            queryParams.put("rowId", StringUtil.generateId());
+            query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
+            for (int i = 0; i < record.size(); i++) {
+                final Tuple2<String, String> recordValue = record.get(i);
+                final String paramName = "p" + i;
+                query.append("MERGE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
+                queryParams.put(paramName, recordValue.v2);
+            }
+            for (int i = 0; i < record.size(); i++) {
+                query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+            }
+            final String queryString = query.toString();
+            try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+                session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
+            }catch (final Throwable cause){
+                logger.error("Failed to add a record. Query: '{}'", queryString, cause);
+            }
+            logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+        });
     }
 
 
