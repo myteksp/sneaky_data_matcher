@@ -40,7 +40,7 @@ public class UploadRepository {
                             @Value("${server.port}") final String port){
         this.baseUrl = domain + ":" + port + "/";
         this.neo4jManager = neo4jManager;
-        this.blockingExecutor = new BlockingExecutor(1024);
+        this.blockingExecutor = new BlockingExecutor(256);
     }
 
     public final void addRecord(final UploadDescriptor upload,
