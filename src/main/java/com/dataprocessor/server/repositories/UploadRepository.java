@@ -30,15 +30,12 @@ public class UploadRepository {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
-    private final String baseUrl;
     private final BlockingExecutor blockingExecutor;
 
 
     @Autowired
     public UploadRepository(final Neo4jManager neo4jManager,
-                            @Value("${config.server.url}") final String domain,
                             @Value("${server.port}") final String port){
-        this.baseUrl = domain + ":" + port + "/";
         this.neo4jManager = neo4jManager;
         this.blockingExecutor = new BlockingExecutor();
     }
