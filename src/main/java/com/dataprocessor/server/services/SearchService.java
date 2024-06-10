@@ -112,7 +112,7 @@ public final class SearchService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Export with name '" + exportDestination + "' already exists");
         }
         exportsRepository.saveSearch(exportDestination, new SearchEntity(raw_mappings, predicate, limitByUploads, joinByColumns, maxJoinDepth));
-        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file, true);
         final MatchEntity resultEntity = repository.createMatchEntity(exportDestination, 0, iterator.getTotalRows());
         final List<UploadMapping> mappings = UploadMappingUtil.parse(raw_mappings);
         Thread.startVirtualThread(()->{

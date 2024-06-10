@@ -60,7 +60,7 @@ public final class UploadsService {
             return null;
         }
         ensureMappingIndexes(uploadDescriptor.mappings);
-        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file, true);
         for (long i=0; i < uploadDescriptor.processed; i++){
             if (iterator.hasNext()){
                 iterator.next();
@@ -90,6 +90,7 @@ public final class UploadsService {
                     repository.addRecord(uploadDescriptor, iterator, records);
                 }
                 repository.completeUploadWithSuccess(uploadDescriptor);
+                fastUploadsRepository.removeSave(uploadDescriptor);
             }catch (final Throwable cause){
                 logger.warn("Failure while ingesting upload '{}'", uploadName, cause);
                 repository.completeUploadWithError(uploadDescriptor);
@@ -144,7 +145,7 @@ public final class UploadsService {
         if (getUploadDescriptorByName(uploadName) != null){
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");
         }
-        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file);
+        final CsvUtil.CsvIterator iterator = CsvUtil.parseCsv(file, true);
         if (getUploadDescriptorByName(uploadName) != null){
             try{iterator.close();}catch (final Throwable ignored){}
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload with name '" + uploadName + "' already exists");

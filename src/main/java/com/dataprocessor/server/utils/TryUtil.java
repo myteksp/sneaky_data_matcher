@@ -64,8 +64,8 @@ public final class TryUtil {
     public static final <T> TryHandler<T> attempt(final Try<T> tryBlock, final Logger logger){
         return new TryHandler<T>() {
             private volatile TryErrorHandler errorHandler = error -> logger.error("Try block error: ", error);
-            private volatile TrySuccessHandler<T> successHandler = value -> logger.debug("Try block success.");
-            private volatile FinallyHandler finallyHandler = () -> logger.debug("Try block finally reached.");
+            private volatile TrySuccessHandler<T> successHandler = value -> logger.trace("Try block success.");
+            private volatile FinallyHandler finallyHandler = () -> logger.trace("Try block finally reached.");
             private volatile boolean closeOnFinally = true;
             private volatile T result = null;
             @Override

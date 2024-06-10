@@ -9,12 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public final class CsvUtil {
 
-    public static final CsvIterator parseCsv(final File file){
+    public static final CsvIterator parseCsv(final File file, final boolean deleteFileOnClose){
         final Logger logger = LoggerFactory.getLogger("CsvParser");
         final Map.Entry<CSVFormat, Integer> formatAndCount = csvAutodetectAndCountRows(file);
         if (formatAndCount == null){
@@ -40,17 +42,7 @@ public final class CsvUtil {
             public final long getCurrentRow() {
                 return currentRow;
             }
-            @Override
-            public final void skip(final long rows) {
-                for (long i = 0; i < rows; i++){
-                    if (iterator.hasNext()){
-                        currentRow++;
-                        iterator.next();
-                    }else{
-                        break;
-                    }
-                }
-            }
+
             @Override
             public final long getTotalRows() {
                 return rowsCount;
@@ -67,15 +59,30 @@ public final class CsvUtil {
             }
 
             @Override
+            public final List<CsvRecord> getBulk(final int amount) {
+                final List<CsvRecord> result = new ArrayList<>(amount);
+                for (int i = 0; i < amount; i++) {
+                    if (this.hasNext()){
+                        result.add(this.next());
+                    }else {
+                        break;
+                    }
+                }
+                return result;
+            }
+
+            @Override
             public final boolean hasNext() {
                 return iterator.hasNext();
             }
             @Override
             public final void close() throws IOException {
                 csvParser.close();
-                final boolean deleteRes = file.delete();
-                if (!deleteRes){
-                    logger.warn("Failed to delete temp file: '{}'.", file.getAbsolutePath());
+                if (deleteFileOnClose) {
+                    final boolean deleteRes = file.delete();
+                    if (!deleteRes) {
+                        logger.warn("Failed to delete temp file: '{}'.", file.getAbsolutePath());
+                    }
                 }
             }
             @Override
@@ -152,10 +159,10 @@ public final class CsvUtil {
     }
     public static interface CsvIterator extends Iterator<CsvRecord>, Closeable {
         long getCurrentRow();
-        void skip(final long rows);
         long getTotalRows();
         Map<String, Integer> getHeaderMap();
         long timeStamp();
+        List<CsvRecord> getBulk(final int amount);
     }
 
     public static interface CsvRecord{

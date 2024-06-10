@@ -26,9 +26,12 @@ import java.util.stream.Collectors;
 public class SearchRepository {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
+    private final FastUploadsRepository fastUploadsRepository;
     @Autowired
-    public SearchRepository(final Neo4jManager neo4jManager){
+    public SearchRepository(final Neo4jManager neo4jManager,
+                            final FastUploadsRepository fastUploadsRepository){
         this.neo4jManager = neo4jManager;
+        this.fastUploadsRepository = fastUploadsRepository;
     }
 
     public final List<Map<String, List<String>>> search(final List<String> columnSearches,
@@ -39,11 +42,19 @@ public class SearchRepository {
                                                         final int skip,
                                                         final int limit){
         final List<SearchQuery> queries = columnSearches.stream().map(SearchQuery::new).toList();
+        final List<Map<String, List<String>>> res;
         if (limitByUploads.isEmpty()){
-            return unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
+            res = unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
+            if (res.isEmpty()){
+                return fastUploadsRepository.unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
+            }
         } else {
-            return limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
+            res = limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
+            if (res.isEmpty()){
+                return fastUploadsRepository.limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
+            }
         }
+        return res;
     }
 
 
@@ -298,10 +309,10 @@ public class SearchRepository {
 
 
 
-    private static final class SearchQuery{
-        private final String node;
-        private final String query;
-        private final QueryType queryType;
+    public static final class SearchQuery{
+        public final String node;
+        public final String query;
+        public final QueryType queryType;
 
         private SearchQuery(final String query){
             final String[] split = query.split(":");
@@ -339,7 +350,7 @@ public class SearchRepository {
             }
         }
 
-        private static enum QueryType{
+        public static enum QueryType{
             STARTS_WITH, ENDS_WITH, CONTAINS, MATCHES
         }
     }
