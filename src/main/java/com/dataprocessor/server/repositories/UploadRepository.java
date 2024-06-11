@@ -37,7 +37,7 @@ public class UploadRepository {
     public UploadRepository(final Neo4jManager neo4jManager,
                             @Value("${server.port}") final String port){
         this.neo4jManager = neo4jManager;
-        this.blockingExecutor = new BlockingExecutor();
+        this.blockingExecutor = new BlockingExecutor(10);
     }
 
     public final void addRecord(final UploadDescriptor upload,
