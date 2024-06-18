@@ -98,7 +98,7 @@ public final class FastUploadsRepository {
                         final int columnCount = metaData.getColumnCount();
                         for (int i = 1; i <= columnCount; i++) {
                             final String columnName = metaData.getColumnName(i);
-                            final String columnValue = resultSet.getString(i);
+                            final String columnValue = StringUtil.ifNullOrBlank(resultSet.getString(i), "");
                             result.add(Map.of(columnName, ListUtils.listOfString(columnValue)));
                         }
                     }
@@ -167,7 +167,7 @@ public final class FastUploadsRepository {
                         final int columnCount = metaData.getColumnCount();
                         for (int i = 1; i <= columnCount; i++) {
                             final String columnName = metaData.getColumnName(i);
-                            final String columnValue = resultSet.getString(i);
+                            final String columnValue = StringUtil.ifNullOrBlank(resultSet.getString(i), "");
                             result.add(Map.of(columnName, ListUtils.listOfString(columnValue)));
                         }
                     }
