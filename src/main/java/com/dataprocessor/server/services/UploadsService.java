@@ -37,7 +37,7 @@ public final class UploadsService {
         this.recordValidationUtilService = recordValidationUtilService;
     }
 
-    private final int bulkSize = 10;
+    private final int bulkSize = 100;
 
     public final UploadDescriptor continueIngestion(final String uploadName){
         final UploadDescriptor uploadDescriptor = getUploadDescriptorByName(uploadName);
