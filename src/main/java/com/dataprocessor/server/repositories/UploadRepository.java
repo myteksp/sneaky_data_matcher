@@ -51,17 +51,17 @@ public class UploadRepository {
             queryParams.put("uploadName", upload.name);
             queryParams.put("uploadProcessed", currentRow);
             final StringBuilder query = new StringBuilder(1024);
-            query.append("MERGE (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+            query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
             queryParams.put("rowId", StringUtil.generateId());
-            query.append("MERGE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
+            query.append("CREATE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
             for (int i = 0; i < record.size(); i++) {
                 final Tuple2<String, String> recordValue = record.get(i);
                 final String paramName = "p" + i;
-                query.append("MERGE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
+                query.append("CREATE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
                 queryParams.put(paramName, recordValue.v2);
             }
             for (int i = 0; i < record.size(); i++) {
-                query.append("MERGE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+                query.append("CREATE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
             }
             final String queryString = query.toString();
             try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
@@ -69,7 +69,9 @@ public class UploadRepository {
             }catch (final Throwable cause){
                 logger.error("Failed to add a record. Query: '{}'", queryString, cause);
             }
-            logger.info("Parallel upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+            if (Math.random() > 0.999){
+                logger.info("Parallel upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+            }
         });
     }
 

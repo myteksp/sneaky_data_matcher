@@ -26,12 +26,9 @@ import java.util.stream.Collectors;
 public class SearchRepository {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
-    private final FastUploadsRepository fastUploadsRepository;
     @Autowired
-    public SearchRepository(final Neo4jManager neo4jManager,
-                            final FastUploadsRepository fastUploadsRepository){
+    public SearchRepository(final Neo4jManager neo4jManager){
         this.neo4jManager = neo4jManager;
-        this.fastUploadsRepository = fastUploadsRepository;
     }
 
     public final List<Map<String, List<String>>> search(final List<String> columnSearches,
@@ -45,16 +42,8 @@ public class SearchRepository {
         final List<Map<String, List<String>>> res;
         if (limitByUploads.isEmpty()){
             res = unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
-            try {
-                final List<Map<String, List<String>>> res1 = fastUploadsRepository.unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
-                res.addAll(res1);
-            }catch (final Throwable ignored){}
         } else {
             res = limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
-            try {
-                final List<Map<String, List<String>>> res1 = fastUploadsRepository.limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
-                res.addAll(res1);
-            }catch (final Throwable ignored){}
         }
         return res;
     }
@@ -259,25 +248,24 @@ public class SearchRepository {
 
     private final List<Map<String, List<String>>> enrichSeedSearchWithJoins(List<Map<String, List<String>>> seedResults,
                                                                             final List<String> joinByColumns,
-                                                                            final int maxJoinDepth){
+                                                                            final int _maxJoinDepth){
+        final int maxJoinDepth = _maxJoinDepth + 1;
         try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
             return seedResults.stream().map(seed->{
-                final String sourceNodeId = seed.get("_id").getFirst();
                 for(final String joinOn : joinByColumns){
                     if (seed.containsKey(joinOn)){
                         final String query = String.format("""
-                                MATCH (n)<-[:OWNS]-(src:Row) WHERE elementId(n) = '%s'
-                                MATCH (src)-[:OWNS]->(:%s)<-[:OWNS]-(src1)
-                                MATCH (src1)-[:OWNS]->(r)
-                                return r, src1;
-                                """, sourceNodeId, joinOn);
+                                MATCH (src)-[:OWNS]->(n:%s) WHERE n.value = '%s'
+                                MATCH (src)-[:OWNS]->(r)
+                                return r, src;
+                                """, joinOn, seed.get(joinOn));
                         final List<Tuple2<String, String>> recordLst = new ArrayList<>(maxJoinDepth);
                         try {
                             final Result queryResult = session.run(query);
                             final HashSet<String> idCounter = new HashSet<>(maxJoinDepth * 2);
                             while (queryResult.hasNext()){
                                 final Record record = queryResult.next();
-                                final String srcId = record.get("src1").asNode().elementId();
+                                final String srcId = record.get("src").asNode().elementId();
                                 final Node node = record.get("r").asNode();
                                 idCounter.add(srcId);
                                 if (idCounter.size() > maxJoinDepth)

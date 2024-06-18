@@ -26,16 +26,13 @@ public final class UploadsService {
     private final IndexManager indexManager;
     private final SourceFilesRepository sourceFilesRepository;
     private final RecordValidationUtilService recordValidationUtilService;
-    private final FastUploadsRepository fastUploadsRepository;
 
     @Autowired
     public UploadsService(final UploadRepository repository,
                           final IndexManager indexManager,
                           final SourceFilesRepository sourceFilesRepository,
-                          final RecordValidationUtilService recordValidationUtilService,
-                          final FastUploadsRepository fastUploadsRepository){
+                          final RecordValidationUtilService recordValidationUtilService){
         this.repository = repository;
-        this.fastUploadsRepository = fastUploadsRepository;
         this.indexManager = indexManager;
         this.sourceFilesRepository = sourceFilesRepository;
         this.recordValidationUtilService = recordValidationUtilService;
@@ -90,7 +87,6 @@ public final class UploadsService {
                     repository.addRecord(uploadDescriptor, iterator, records);
                 }
                 repository.completeUploadWithSuccess(uploadDescriptor);
-                fastUploadsRepository.removeSave(uploadDescriptor);
             }catch (final Throwable cause){
                 logger.warn("Failure while ingesting upload '{}'", uploadName, cause);
                 repository.completeUploadWithError(uploadDescriptor);
@@ -108,7 +104,6 @@ public final class UploadsService {
         ensureMappingIndexes(mappings);
         final UploadDescriptor uploadDescriptor = repository.createUpload(uploadName, mappings, iterator);
         sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
-        fastUploadsRepository.fastSave(uploadDescriptor, file);
         Thread.startVirtualThread(()->{
             try {
                 while (iterator.hasNext()){
@@ -135,7 +130,6 @@ public final class UploadsService {
                 repository.completeUploadWithError(uploadDescriptor);
             }finally {
                 try{iterator.close();}catch (final Throwable ignored){}
-                fastUploadsRepository.removeSave(uploadDescriptor);
             }
         });
         return uploadDescriptor;
