@@ -42,17 +42,11 @@ public class UploadRepository {
 
     public final void addRecords(final UploadDescriptor upload,
                                  final CsvUtil.CsvIterator iterator,
-                                 final List<List<Tuple2<String, String>>> _records){
-        if (_records.isEmpty())
+                                 final List<List<Tuple2<String, String>>> records){
+        if (records.isEmpty())
             return;
-        final List<List<Tuple2<String, String>>> records = new ArrayList<>(_records.size());
-        for(final List<Tuple2<String, String>> list : _records){
-            final List<Tuple2<String, String>> nList = new ArrayList<>(list.size());
-            nList.addAll(list);
-            records.add(nList);
-        }
-        final long startTime = System.currentTimeMillis();
 
+        final long startTime = System.currentTimeMillis();
         final StringBuilder query = new StringBuilder(1024 * records.size());
         final Map<String, Object> queryParams = new HashMap<>(16 + (ListUtils.sumOfLengths(records) * 2));
         queryParams.put("uploadName", upload.name);
