@@ -45,12 +45,16 @@ public class SearchRepository {
         final List<Map<String, List<String>>> res;
         if (limitByUploads.isEmpty()){
             res = unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
-            final List<Map<String, List<String>>> res1 = fastUploadsRepository.unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
-            res.addAll(res1);
+            try {
+                final List<Map<String, List<String>>> res1 = fastUploadsRepository.unlimitedByUploads(queries, predicate, joinByColumns, maxJoinDepth, skip, limit);
+                res.addAll(res1);
+            }catch (final Throwable ignored){}
         } else {
             res = limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
-            final List<Map<String, List<String>>> res1 = fastUploadsRepository.limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
-            res.addAll(res1);
+            try {
+                final List<Map<String, List<String>>> res1 = fastUploadsRepository.limitedByUploads(queries, predicate, limitByUploads, joinByColumns, maxJoinDepth, skip, limit);
+                res.addAll(res1);
+            }catch (final Throwable ignored){}
         }
         return res;
     }
