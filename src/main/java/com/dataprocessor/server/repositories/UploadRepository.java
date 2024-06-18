@@ -70,7 +70,7 @@ public class UploadRepository {
                 logger.error("Failed to add a record. Query: '{}'", queryString, cause);
             }
             if (Math.random() > 0.999){
-                logger.info("Parallel upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+                logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
             }
         });
     }
