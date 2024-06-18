@@ -7,7 +7,6 @@ import com.dataprocessor.server.utils.StringTransformer;
 import com.dataprocessor.server.utils.StringUtil;
 import com.dataprocessor.server.utils.csv.CsvUtil;
 import com.dataprocessor.server.utils.tuples.Tuple2;
-import org.apache.commons.validator.routines.EmailValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +36,8 @@ public final class UploadsService {
         this.sourceFilesRepository = sourceFilesRepository;
         this.recordValidationUtilService = recordValidationUtilService;
     }
+
+    private final int bulkSize = 10;
 
     public final UploadDescriptor continueIngestion(final String uploadName){
         final UploadDescriptor uploadDescriptor = getUploadDescriptorByName(uploadName);
@@ -68,6 +69,7 @@ public final class UploadsService {
         }
         Thread.startVirtualThread(()->{
             try {
+                final List<List<Tuple2<String, String>>> recordsBuffer = new ArrayList<>(bulkSize+16);
                 while (iterator.hasNext()){
                     final CsvUtil.CsvRecord record = iterator.next();
                     final List<Tuple2<String, String>> records = new ArrayList<>(uploadDescriptor.mappings.size());
@@ -84,8 +86,15 @@ public final class UploadsService {
                             records.add(new Tuple2<>(mapping.destinationColumn, resultValue));
                         }
                     }
-                    repository.addRecord(uploadDescriptor, iterator, records);
+                    if (recordsBuffer.size() < bulkSize){
+                        recordsBuffer.add(records);
+                    }else{
+                        repository.addRecords(uploadDescriptor, iterator, recordsBuffer);
+                        recordsBuffer.clear();
+                    }
                 }
+                repository.addRecords(uploadDescriptor, iterator, recordsBuffer);
+                recordsBuffer.clear();
                 repository.completeUploadWithSuccess(uploadDescriptor);
             }catch (final Throwable cause){
                 logger.warn("Failure while ingesting upload '{}'", uploadName, cause);
@@ -106,6 +115,7 @@ public final class UploadsService {
         sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
         Thread.startVirtualThread(()->{
             try {
+                final List<List<Tuple2<String, String>>> recordsBuffer = new ArrayList<>(bulkSize+16);
                 while (iterator.hasNext()){
                     final CsvUtil.CsvRecord record = iterator.next();
                     final List<Tuple2<String, String>> records = new ArrayList<>(mappings.size());
@@ -122,8 +132,15 @@ public final class UploadsService {
                             records.add(new Tuple2<>(mapping.destinationColumn, resultValue));
                         }
                     }
-                    repository.addRecord(uploadDescriptor, iterator, records);
+                    if (recordsBuffer.size() < bulkSize){
+                        recordsBuffer.add(records);
+                    }else{
+                        repository.addRecords(uploadDescriptor, iterator, recordsBuffer);
+                        recordsBuffer.clear();
+                    }
                 }
+                repository.addRecords(uploadDescriptor, iterator, recordsBuffer);
+                recordsBuffer.clear();
                 repository.completeUploadWithSuccess(uploadDescriptor);
             }catch (final Throwable cause){
                 logger.warn("Failure while ingesting upload '{}'", uploadName, cause);

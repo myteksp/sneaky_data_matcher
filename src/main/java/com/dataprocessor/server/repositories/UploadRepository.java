@@ -3,6 +3,7 @@ package com.dataprocessor.server.repositories;
 import com.dataprocessor.server.entities.UploadDescriptor;
 import com.dataprocessor.server.entities.UploadMapping;
 import com.dataprocessor.server.utils.BlockingExecutor;
+import com.dataprocessor.server.utils.ListUtils;
 import com.dataprocessor.server.utils.StringUtil;
 import com.dataprocessor.server.utils.csv.CsvUtil;
 import com.dataprocessor.server.utils.json.JSON;
@@ -19,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,14 +32,56 @@ public class UploadRepository {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Neo4jManager neo4jManager;
-    private final BlockingExecutor blockingExecutor;
 
 
     @Autowired
     public UploadRepository(final Neo4jManager neo4jManager,
                             @Value("${server.port}") final String port){
         this.neo4jManager = neo4jManager;
-        this.blockingExecutor = new BlockingExecutor(10);
+    }
+
+    public final void addRecords(final UploadDescriptor upload,
+                                 final CsvUtil.CsvIterator iterator,
+                                 final List<List<Tuple2<String, String>>> _records){
+        if (_records.isEmpty())
+            return;
+        final List<List<Tuple2<String, String>>> records = new ArrayList<>(_records.size());
+        for(final List<Tuple2<String, String>> list : _records){
+            final List<Tuple2<String, String>> nList = new ArrayList<>(list.size());
+            nList.addAll(list);
+            records.add(nList);
+        }
+        final long startTime = System.currentTimeMillis();
+
+        final StringBuilder query = new StringBuilder(1024 * records.size());
+        final Map<String, Object> queryParams = new HashMap<>(16 + (ListUtils.sumOfLengths(records) * 2));
+        queryParams.put("uploadName", upload.name);
+        queryParams.put("uploadProcessed", iterator.getCurrentRow());
+        query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+
+        for (int rowNumber = 0; rowNumber < records.size(); rowNumber++) {
+            final List<Tuple2<String, String>> record = records.get(rowNumber);
+            final String rowIdKey = "rowId" + rowNumber;
+            queryParams.put(rowIdKey, StringUtil.generateId());
+            query.append("CREATE (upload)-[:OWNS]->(row").append(rowNumber).append(":Row {rowId:$").append(rowIdKey).append("})").append('\n');
+            for (int i = 0; i < record.size(); i++) {
+                final Tuple2<String, String> recordValue = record.get(i);
+                final String paramName = "p" + i + "_" + rowNumber;
+                query.append("CREATE (n").append(i).append("_").append(rowNumber).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
+                queryParams.put(paramName, recordValue.v2);
+            }
+            for (int i = 0; i < record.size(); i++) {
+                query.append("CREATE (n").append(i).append("_").append(rowNumber).append(")<-[:OWNS]-(row").append(rowNumber).append(")").append('\n');
+            }
+        }
+
+        final String queryString = query.toString();
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWrite(tx -> tx.run(queryString, queryParams).consume());
+        } catch (final Throwable cause) {
+            logger.error("Failed to add a record. Query: '{}'", queryString, cause);
+        }
+        logger.info("Multirow upload '{}' Row {} out of {}. {}%. Execution time: {} milliseconds.", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)), (System.currentTimeMillis() - startTime));
     }
 
     public final void addRecord(final UploadDescriptor upload,
@@ -45,34 +89,32 @@ public class UploadRepository {
                                 final List<Tuple2<String, String>> record){
         if (record.isEmpty())
             return;
-        blockingExecutor.execute(()->{
-            final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
-            final long currentRow = iterator.getCurrentRow();
-            queryParams.put("uploadName", upload.name);
-            queryParams.put("uploadProcessed", currentRow);
-            final StringBuilder query = new StringBuilder(1024);
-            query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
-            queryParams.put("rowId", StringUtil.generateId());
-            query.append("CREATE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
-            for (int i = 0; i < record.size(); i++) {
-                final Tuple2<String, String> recordValue = record.get(i);
-                final String paramName = "p" + i;
-                query.append("CREATE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
-                queryParams.put(paramName, recordValue.v2);
-            }
-            for (int i = 0; i < record.size(); i++) {
-                query.append("CREATE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
-            }
-            final String queryString = query.toString();
-            try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
-                session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
-            }catch (final Throwable cause){
-                logger.error("Failed to add a record. Query: '{}'", queryString, cause);
-            }
-            if (Math.random() > 0.999){
-                logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
-            }
-        });
+        final Map<String, Object> queryParams = new HashMap<>(16 + (record.size() * 2));
+        final long currentRow = iterator.getCurrentRow();
+        queryParams.put("uploadName", upload.name);
+        queryParams.put("uploadProcessed", currentRow);
+        final StringBuilder query = new StringBuilder(1024);
+        query.append("MATCH (upload:Upload {name:$uploadName}) SET upload.processed=$uploadProcessed").append('\n');
+        queryParams.put("rowId", StringUtil.generateId());
+        query.append("CREATE (upload)-[:OWNS]->(row:Row {rowId:$rowId})").append('\n');
+        for (int i = 0; i < record.size(); i++) {
+            final Tuple2<String, String> recordValue = record.get(i);
+            final String paramName = "p" + i;
+            query.append("CREATE (n").append(i).append(":").append(recordValue.v1).append(" {value:$").append(paramName).append("})").append('\n');
+            queryParams.put(paramName, recordValue.v2);
+        }
+        for (int i = 0; i < record.size(); i++) {
+            query.append("CREATE (n").append(i).append(")<-[:OWNS]-(row)").append('\n');
+        }
+        final String queryString = query.toString();
+        try (final var session = neo4jManager.getDriver().session(SessionConfig.builder().withDatabase(neo4jManager.getDatabase()).build())) {
+            session.executeWrite(tx-> tx.run(queryString, queryParams).consume());
+        }catch (final Throwable cause){
+            logger.error("Failed to add a record. Query: '{}'", queryString, cause);
+        }
+        if (Math.random() > 0.999){
+            logger.info("Upload '{}' Row {} out of {}. {}%", upload.name, iterator.getCurrentRow(), iterator.getTotalRows(), BigDecimal.valueOf(iterator.getCurrentRow()).divide(BigDecimal.valueOf(iterator.getTotalRows()), 10, RoundingMode.HALF_EVEN).multiply(BigDecimal.valueOf(100.0)));
+        }
     }
 
 

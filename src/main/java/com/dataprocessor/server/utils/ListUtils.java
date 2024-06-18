@@ -2,6 +2,7 @@ package com.dataprocessor.server.utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 public final class ListUtils {
@@ -35,5 +36,15 @@ public final class ListUtils {
             return it;
 
         return defaultValue;
+    }
+
+    public static final int sumOfLengths(final List listOfLists){
+        int res = 0;
+        for(final Object l : listOfLists) {
+            if (l instanceof Collection<?>){
+                res += ((Collection<?>)l).size();
+            }
+        }
+        return res;
     }
 }
