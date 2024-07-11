@@ -6,6 +6,7 @@ import com.dataprocessor.server.repositories.*;
 import com.dataprocessor.server.utils.StringTransformer;
 import com.dataprocessor.server.utils.StringUtil;
 import com.dataprocessor.server.utils.csv.CsvUtil;
+import com.dataprocessor.server.utils.json.JSON;
 import com.dataprocessor.server.utils.tuples.Tuple2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public final class UploadsService {
@@ -106,6 +108,27 @@ public final class UploadsService {
         return uploadDescriptor;
     }
 
+    private final boolean validateCsvAndMappings(final CsvUtil.CsvIterator iterator, final List<UploadMapping> mappings){
+        final Map<String, Integer> headers = iterator.getHeaderMap();
+        if (headers == null){
+            return false;
+        }
+        for(final UploadMapping mapping : mappings){
+            for (final String col : mapping.sourceColumns){
+                final Integer key = headers.get(col);
+                if (key == null){
+                    logger.warn("No column '{}' found in header.", col);
+                    return false;
+                }
+                if (key < 0){
+                    logger.warn("Illegal column index of '{}'. Index: '{}'.", col, key);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     public final UploadDescriptor ingest(final File file,
                                          final String uploadName,
                                          final List<UploadMapping> mappings){
@@ -113,6 +136,12 @@ public final class UploadsService {
         ensureMappingIndexes(mappings);
         final UploadDescriptor uploadDescriptor = repository.createUpload(uploadName, mappings, iterator);
         sourceFilesRepository.saveSourceFile(uploadDescriptor.name, file);
+        if (!validateCsvAndMappings(iterator, mappings)){
+            logger.warn("Failed to validate mappings with header: '{}'", uploadName);
+            repository.completeUploadWithError(uploadDescriptor);
+            try{iterator.close();}catch (final Throwable ignored){}
+            return repository.getUploadByName(uploadDescriptor.name);
+        }
         Thread.startVirtualThread(()->{
             try {
                 final List<List<Tuple2<String, String>>> recordsBuffer = new ArrayList<>(bulkSize+16);
@@ -125,8 +154,8 @@ public final class UploadsService {
                         for (int i = 0; i < mapping.sourceColumns.size() - 1; i++) {
                             sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.get(i), mapping.transformations)).append(" ");
                         }
-                        sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
 
+                        sb.append(recordValidationUtilService.extractAndValidate(record, mapping.sourceColumns.getLast(), mapping.transformations));
                         final String resultValue = StringTransformer.transform(sb.toString(), mapping.transformations);
                         if (!StringUtil.isNullOrBlank(resultValue)){
                             records.add(new Tuple2<>(mapping.destinationColumn, resultValue));
